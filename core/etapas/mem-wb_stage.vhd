@@ -1,69 +1,75 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+use IEEE.NUMERIC_STD.ALL; -- Not strictly needed here but good practice
 
--- Importar componentes necesarios
+-- Assuming DataMemory component is available, possibly from 'work.ram' or similar
 library work;
-use work.ram.all;
+-- use work.ram.all; -- If DataMemory is defined in a package 'ram' in 'work'
 
 entity mem_wb_stage is
     Port (
-        -- Señales básicas
-        clk     : in  STD_LOGIC;                    -- Reloj
-        reset   : in  STD_LOGIC;                    -- Reset
+        -- Inputs from ID-EX/MEM-WB Register
+        clk_i               : in  STD_LOGIC; -- Clock for Data Memory
+        reset_i             : in  STD_LOGIC; -- Reset for Data Memory
         
-        -- Entradas de la etapa MEM
-        direccion_in    : in std_logic_vector(31 downto 0);  -- Dirección de memoria
-        mem_wr_data     : in std_logic_vector(31 downto 0);  -- Dato a escribir
-        mem_read        : in std_logic;                      -- Lectura memoria
-        mem_write       : in std_logic;                      -- Escritura memoria
-        mem_to_reg      : in std_logic;                      -- Memoria a registro
-        branch          : in std_logic;                      -- Señal branch
-        alu_zero        : in std_logic;                      -- Flag cero ALU
+        ALUResult_i         : in  STD_LOGIC_VECTOR(31 downto 0); -- Result from ALU
+        WriteDataMem_i      : in  STD_LOGIC_VECTOR(31 downto 0); -- Data to write to memory (for SW)
+        WriteRegAddr_i      : in  STD_LOGIC_VECTOR(4 downto 0);  -- Address of destination register
 
-        -- Salidas
-        read_data_out   : out std_logic_vector(31 downto 0); -- Dato leído
-        branch_out      : out std_logic                       -- Señal branch final
+        -- Control signals from ID-EX/MEM-WB Register
+        RegWrite_i          : in  STD_LOGIC; -- Enables register write
+        MemRead_i           : in  STD_LOGIC; -- Enables memory read
+        MemWrite_i          : in  STD_LOGIC; -- Enables memory write
+        MemToReg_i          : in  STD_LOGIC; -- Selects write-back data source (Mem vs ALU)
+
+        -- Outputs to Register File
+        WriteRegData_o      : out STD_LOGIC_VECTOR(31 downto 0); -- Data to write to register file
+        WriteRegAddr_o      : out STD_LOGIC_VECTOR(4 downto 0);  -- Destination register address
+        RegWriteEnable_o    : out STD_LOGIC                      -- To enable writing in Register File
     );
 end mem_wb_stage;
 
 architecture Behavioral of mem_wb_stage is
-    -- Señales internas
-    signal read_data : std_logic_vector(31 downto 0);  -- Dato leído de memoria
-    signal mux_out   : std_logic_vector(31 downto 0);  -- Salida del multiplexor
+    -- Signal for data read from Data Memory
+    signal s_mem_read_data : std_logic_vector(31 downto 0);
 
-    -- Componente memoria de datos
+    -- Component for Data Memory (ensure this matches your actual DataMemory component)
     component DataMemory is
         port (
-            CLK         : in  std_logic;                     -- Reloj
-            RESET       : in  std_logic;                     -- Reset
-            MemRead     : in  std_logic;                     -- Lectura
-            MemWrite    : in  std_logic;                     -- Escritura
-            Address     : in  std_logic_vector(31 downto 0); -- Dirección
-            WriteData   : in  std_logic_vector(31 downto 0); -- Dato escritura
-            ReadData    : out std_logic_vector(31 downto 0)  -- Dato lectura
+            CLK         : in  std_logic;
+            RESET       : in  std_logic;
+            MemRead     : in  std_logic;
+            MemWrite    : in  std_logic;
+            Address     : in  std_logic_vector(31 downto 0);
+            WriteData   : in  std_logic_vector(31 downto 0);
+            ReadData    : out std_logic_vector(31 downto 0)
         );
     end component;
 
 begin
-    -- Instanciar memoria de datos
-    data_mem: DataMemory port map (
-        CLK => clk,
-        RESET => reset,
-        MemRead => mem_read,
-        MemWrite => mem_write,
-        Address => direccion_in,
-        WriteData => mem_wr_data,
-        ReadData => read_data
-    );
 
-    -- Multiplexor para seleccionar entre memoria y ALU
-    mux_out <= read_data when (mem_to_reg = '1') else mem_wr_data;
+    -- Instantiate Data Memory
+    -- The address for memory operations comes from the ALU result.
+    -- Data to be written to memory (for SW) comes from WriteDataMem_i.
+    data_memory_inst: entity work.DataMemory -- Or specific library.entity if not in 'work' directly
+        port map (
+            CLK       => clk_i,
+            RESET     => reset_i,
+            MemRead   => MemRead_i,
+            MemWrite  => MemWrite_i,
+            Address   => ALUResult_i,
+            WriteData => WriteDataMem_i,
+            ReadData  => s_mem_read_data
+        );
 
-    -- Lógica de branch (AND entre branch y alu_zero)
-    branch_out <= branch and alu_zero;
+    -- Write-Back Mux: Selects data to be written to the register file.
+    -- If MemToReg_i is '1', data comes from memory (LW).
+    -- Otherwise, data comes from ALU result (R-type, I-type ALU).
+    WriteRegData_o <= s_mem_read_data when MemToReg_i = '1' else
+                      ALUResult_i;
 
-    -- Conectar salida del multiplexor al puerto de salida
-    read_data_out <= mux_out;
+    -- Pass through the destination register address and RegWrite enable signal
+    WriteRegAddr_o   <= WriteRegAddr_i;
+    RegWriteEnable_o <= RegWrite_i;
 
 end Behavioral;
