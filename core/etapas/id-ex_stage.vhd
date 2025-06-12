@@ -12,8 +12,15 @@ entity id_ex_stage is
         reset                 : in  STD_LOGIC;
         Instruction_i         : in  STD_LOGIC_VECTOR(31 downto 0);
         PC_plus_4_i           : in  STD_LOGIC_VECTOR(31 downto 0);
-        RegData1_i            : in  STD_LOGIC_VECTOR(31 downto 0);
-        RegData2_i            : in  STD_LOGIC_VECTOR(31 downto 0);
+        RegData1_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Reg source for ALU A
+        RegData2_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Reg source for ALU B
+
+        -- Forwarding and Hazard Control Inputs
+        ForwardA_sel_i          : in  STD_LOGIC_VECTOR(1 downto 0);
+        ForwardB_sel_i          : in  STD_LOGIC_VECTOR(1 downto 0);
+        Forward_EXMEM_ALUResult_i : in  STD_LOGIC_VECTOR(31 downto 0);
+        Forward_MEMWB_WriteData_i : in  STD_LOGIC_VECTOR(31 downto 0);
+        Bubble_IDEX_i           : in  STD_LOGIC;
 
         -- Outputs to ID-EX/MEM-WB Register
         ALUResult_o           : out STD_LOGIC_VECTOR(31 downto 0);
@@ -47,7 +54,7 @@ architecture Behavioral of id_ex_stage is
     signal s_immediate_16 : std_logic_vector(15 downto 0);
     signal s_immediate_extended : std_logic_vector(31 downto 0);
 
-    -- Control Unit signals
+    -- Raw Control Unit signals
     signal s_RegWrite    : std_logic;
     signal s_RegDst      : std_logic;
     signal s_Branch      : std_logic;
@@ -56,24 +63,34 @@ architecture Behavioral of id_ex_stage is
     signal s_MemWrite    : std_logic;
     signal s_ALUSrc      : std_logic;
     signal s_Jump        : std_logic;
-    signal s_alu_op_from_cu : std_logic_vector(1 downto 0); -- Changed from 4-bit to 2-bit
+    signal s_alu_op_from_cu : std_logic_vector(1 downto 0);
 
     -- ALUControl signals
-    signal s_final_alu_control : std_logic_vector(3 downto 0); -- Output from new ALUControl module
+    signal s_final_alu_control : std_logic_vector(3 downto 0);
 
-    -- ALU signals
-    signal s_alu_operand_b : std_logic_vector(31 downto 0);
+    -- ALU input signals after forwarding
+    signal s_alu_input_a         : std_logic_vector(31 downto 0);
+    signal s_alu_input_b_reg_src : std_logic_vector(31 downto 0);
+    signal s_alu_operand_b       : std_logic_vector(31 downto 0); -- Final operand B for ALU (can be immediate)
+
+    -- ALU output signals
     signal s_alu_result    : std_logic_vector(31 downto 0);
     signal s_alu_zero      : std_logic;
+
+    -- Effective control signals (can be zeroed by bubble)
+    signal s_eff_RegWrite        : std_logic;
+    signal s_eff_MemRead         : std_logic;
+    signal s_eff_MemWrite        : std_logic;
+    signal s_eff_MemToReg        : std_logic;
+    signal s_eff_Branch          : std_logic;
+    signal s_eff_Jump            : std_logic;
 
     -- Branch logic
     signal s_branch_condition_met : std_logic;
 
-    -- Updated ControlUnit component
     component ControlUnit is
         port (
             OP          : in  std_logic_vector(5 downto 0);
-            -- Funct input removed
             RegWrite    : out std_logic;
             RegDst      : out std_logic;
             Branch      : out std_logic;
@@ -82,11 +99,10 @@ architecture Behavioral of id_ex_stage is
             MemWrite    : out std_logic;
             ALUSrc      : out std_logic;
             Jump        : out std_logic;
-            ALUOp_o     : out std_logic_vector(1 downto 0) -- Changed from ALUControl
+            ALUOp_o     : out std_logic_vector(1 downto 0)
         );
     end component;
 
-    -- New ALUControl component
     component ALUControl is
         port (
             ALUOp      : in  std_logic_vector(1 downto 0);
@@ -114,14 +130,11 @@ begin
     s_funct  <= Instruction_i(5 downto 0);
     s_immediate_16 <= Instruction_i(15 downto 0);
 
-    -- Sign Extension for Immediate
     s_immediate_extended <= std_logic_vector(resize(signed(s_immediate_16), 32));
 
-    -- Control Unit Instantiation (Updated)
     control_unit_inst: entity work.ControlUnit
         port map (
             OP         => s_opcode,
-            -- Funct mapping removed
             RegWrite   => s_RegWrite,
             RegDst     => s_RegDst,
             Branch     => s_Branch,
@@ -130,10 +143,9 @@ begin
             MemWrite   => s_MemWrite,
             ALUSrc     => s_ALUSrc,
             Jump       => s_Jump,
-            ALUOp_o    => s_alu_op_from_cu -- Changed port name and signal
+            ALUOp_o    => s_alu_op_from_cu
         );
 
-    -- New ALUControl Instantiation
     alu_control_inst: entity work.ALUControl
         port map (
             ALUOp      => s_alu_op_from_cu,
@@ -141,52 +153,78 @@ begin
             ALUControl => s_final_alu_control
         );
 
-    -- Register File Read Addresses
     ReadReg1Addr_o <= s_rs;
     ReadReg2Addr_o <= s_rt;
 
-    -- ALU Operand B Mux
-    s_alu_operand_b <= RegData2_i when s_ALUSrc = '0' else s_immediate_extended;
+    -- Forwarding Mux for ALU Input A
+    alu_input_a_mux_proc: process(ForwardA_sel_i, RegData1_i, Forward_EXMEM_ALUResult_i, Forward_MEMWB_WriteData_i)
+    begin
+        case ForwardA_sel_i is
+            when "01" => -- Forward from EX/MEM result (previous ALU op)
+                s_alu_input_a <= Forward_EXMEM_ALUResult_i;
+            when "10" => -- Forward from MEM/WB result (older op, could be LW or ALU)
+                s_alu_input_a <= Forward_MEMWB_WriteData_i;
+            when others => -- "00" or default
+                s_alu_input_a <= RegData1_i;
+        end case;
+    end process alu_input_a_mux_proc;
 
-    -- ALU Instantiation (Updated control signal)
+    -- Forwarding Mux for Register Source of ALU Input B
+    alu_input_b_reg_src_mux_proc: process(ForwardB_sel_i, RegData2_i, Forward_EXMEM_ALUResult_i, Forward_MEMWB_WriteData_i)
+    begin
+        case ForwardB_sel_i is
+            when "01" => -- Forward from EX/MEM result
+                s_alu_input_b_reg_src <= Forward_EXMEM_ALUResult_i;
+            when "10" => -- Forward from MEM/WB result
+                s_alu_input_b_reg_src <= Forward_MEMWB_WriteData_i;
+            when others => -- "00" or default
+                s_alu_input_b_reg_src <= RegData2_i;
+        end case;
+    end process alu_input_b_reg_src_mux_proc;
+
+    s_alu_operand_b <= s_alu_input_b_reg_src when s_ALUSrc = '0' else s_immediate_extended;
+
     alu_inst: entity work.ALU
         port map (
-            a       => RegData1_i,
+            a       => s_alu_input_a,
             b       => s_alu_operand_b,
-            control => s_final_alu_control, -- Changed to output of new ALUControl module
+            control => s_final_alu_control,
             zero    => s_alu_zero,
             result  => s_alu_result
         );
 
-    -- Write Register Address Mux
     WriteRegAddr_o <= s_rt when s_RegDst = '0' else s_rd;
+    WriteDataMem_o <= s_alu_input_b_reg_src; -- For SW, this should be the data from Rt (after forwarding)
 
-    -- Data to Memory (for SW)
-    WriteDataMem_o <= RegData2_i;
+    -- Bubble Logic for Control Signals
+    s_eff_RegWrite <= s_RegWrite and not Bubble_IDEX_i;
+    s_eff_MemRead  <= s_MemRead  and not Bubble_IDEX_i;
+    s_eff_MemWrite <= s_MemWrite and not Bubble_IDEX_i;
+    s_eff_MemToReg <= s_MemtoReg and not Bubble_IDEX_i;
+    s_eff_Branch   <= s_Branch   and not Bubble_IDEX_i;
+    s_eff_Jump     <= s_Jump     and not Bubble_IDEX_i;
 
     -- PC Control Logic
-    s_branch_condition_met <= s_Branch and s_alu_zero;
-    Jump_Target_Addr_o   <= (PC_plus_4_i(31 downto 28) & Instruction_i(25 downto 0) & "00");
-    Branch_Target_Addr_o <= PC_plus_4_i + (s_immediate_extended sll 2);
+    s_branch_condition_met <= s_eff_Branch and s_alu_zero;
 
-    pc_source_logic: process(s_Jump, s_branch_condition_met)
+    pc_source_logic: process(s_eff_Jump, s_branch_condition_met)
     begin
-        if s_Jump = '1' then
+        if s_eff_Jump = '1' then
             PCSrc_o <= "10";
         elsif s_branch_condition_met = '1' then
             PCSrc_o <= "01";
         else
             PCSrc_o <= "00";
         end if;
-    end process;
+    end process pc_source_logic;
 
-    -- Pass-through outputs for ID-EX/MEM-WB register
+    -- Pass-through effective control signals and data to ID-EX/MEM-WB register
     ALUResult_o      <= s_alu_result;
     ALU_Zero_o       <= s_alu_zero;
     PC_plus_4_pass_o <= PC_plus_4_i;
-    RegWrite_o <= s_RegWrite;
-    MemRead_o  <= s_MemRead;
-    MemWrite_o <= s_MemWrite;
-    MemToReg_o <= s_MemtoReg;
+    RegWrite_o <= s_eff_RegWrite;
+    MemRead_o  <= s_eff_MemRead;
+    MemWrite_o <= s_eff_MemWrite;
+    MemToReg_o <= s_eff_MemToReg;
 
 end Behavioral;

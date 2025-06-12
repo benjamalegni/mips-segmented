@@ -57,24 +57,23 @@ begin
 
         report "Stimulus: Starting main program execution phase.";
 
-        -- Example Test Program (conceptual - loaded via ELF file "program")
-        -- 00: ADDI $1, $0, 5       (Load 5 into r1)
-        -- 04: ADDI $2, $0, 10      (Load 10 into r2)
-        -- 08: ADD  $3, $1, $2       (r3 = r1 + r2 = 15)
-        -- 0C: SW   $3, 0($0)        (Store r3 to data memory addr 0)
-        -- 10: LW   $4, 0($0)        (Load from data memory addr 0 to r4; r4 should be 15)
-        -- 14: NOP                    (Alignment for branch, or useful work)
-        -- 18: BEQ  $3, $4, +8_bytes (skip_one: PC+4+8 = PC+12 if r3==r4) (Target: address 0x24)
-        -- 1C: ADDI $5, $0, 1       (This instruction should be skipped if branch taken)
-        -- 20: NOP                    (Delay slot or other instruction)
-        -- 24: <skip_one_target_addr>: ADDI $6, $0, 100 (r6 = 100)
-        -- 28: J    0x28             (Infinite loop to signify end for this simple TB / or J to a specific end address)
-        -- 2C: ADDI $7, $0, 200     (Should not be reached if jump is effective)
+        -- Program 3 (conceptual - loaded via file "program", all addresses are byte addresses)
+        -- Assuming $t1=R9, $t2=R10, $t3=R11, $t4=R12, $t5=R13
+        -- Addr  Machine Code  Instruction
+        -- 0x00: 8C090000      lw $t1, 0($zero)
+        -- 0x04: 8C0A0004      lw $t2, 4($zero)
+        -- 0x08: 012A6020      add $t4, $t1, $t2
+        -- 0x0C: 8C0B0008      lw $t3, 8($zero)
+        -- 0x10: 018B6022      sub $t4, $t4, $t3
+        -- 0x14: 014C6820      add $t5, $t2, $t4
+        -- 0x18: 08000005      j 0x00000014 (jumps to the `add $t5` instruction at address 0x14)
+        -- 0x1C: 00000000      nop (padding)
+        -- 0x20: 00000000      nop (padding)
+        -- 0x24: 00000000      nop (padding)
 
-        -- Let the simulation run for enough cycles to complete the above program.
-        -- For example, ~20-30 instructions, 3-stage pipeline might take ~ (N + P-1) + stalls
-        -- For 10 key instructions, maybe 10 + 2 = 12 cycles ideal, plus some overhead.
-        -- Let's give it 50 cycles for this hypothetical program.
+        -- Let the simulation run for enough cycles.
+        -- Program 3 has 7 significant instructions. The jump creates a small loop.
+        -- 100 cycles should be sufficient to observe behavior.
         wait for CLK_PERIOD * 100;
 
         report "Stimulus: Nominal program execution time finished.";
