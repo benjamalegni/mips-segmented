@@ -1,35 +1,41 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL; -- Not strictly needed but good practice
+use IEEE.NUMERIC_STD.ALL; -- No es estrictamente necesario pero es buena práctica
 
 entity HazardUnit is
     Port (
-        -- Inputs from IF/ID Register (for instruction currently in ID/EX stage)
-        IF_ID_Rs_addr_i         : in  STD_LOGIC_VECTOR(4 downto 0); -- Rs of ID/EX instruction
-        IF_ID_Rt_addr_i         : in  STD_LOGIC_VECTOR(4 downto 0); -- Rt of ID/EX instruction
-        IF_ID_Inst_is_LW_i      : in  STD_LOGIC; -- Is the instruction in IF/ID an LW (needed for some hazard checks, though primary load-use is based on EX/MEM)
-                                                -- Let's simplify: not directly needed if we check EXMEM_MemToReg for LW stalling.
+        -- Entradas desde el Registro IF/ID (para la instrucción actualmente en la etapa ID/EX)
+        IF_ID_Rs_addr_i         : in  STD_LOGIC_VECTOR(4 downto 0); -- Rs de la instrucción ID/EX
+        IF_ID_Rt_addr_i         : in  STD_LOGIC_VECTOR(4 downto 0); -- Rt de la instrucción ID/EX
+        IF_ID_Inst_is_LW_i      : in  STD_LOGIC; -- ¿Es la instrucción en IF/ID un LW (necesario para algunas verificaciones de riesgo, aunque el riesgo primario de carga-uso se basa en EX/MEM)
+                                                -- Simplifiquemos: no es directamente necesario si verificamos EXMEM_MemToReg para el bloqueo por LW.
 
-        -- Inputs from ID/EX stage outputs (going into EX/MEM Register)
-        -- Not strictly needed for forwarding/stall decisions as these are for the *current* instruction
-        -- whose hazards are being evaluated based on *previous* instructions.
-        -- However, EXMEM_RegWrite and EXMEM_WriteRegAddr are the *result* of the ID/EX stage.
+        -- Entradas desde las salidas de la etapa ID/EX (que van al Registro EX/MEM)
+        -- No son estrictamente necesarias para las decisiones de adelantamiento/bloqueo, ya que estas son para la instrucción *actual*
+        -- cuyos riesgos se evalúan en función de las instrucciones *anteriores*.
+        -- Sin embargo, EXMEM_RegWrite y EXMEM_WriteRegAddr son el *resultado* de la etapa ID/EX.
 
-        -- Inputs from EX/MEM Register outputs (for instruction currently in MEM/WB stage)
-        EXMEM_RegWrite_i        : in  STD_LOGIC; -- RegWrite for instruction in MEM/WB stage
-        EXMEM_WriteRegAddr_i    : in  STD_LOGIC_VECTOR(4 downto 0); -- Rd for instruction in MEM/WB stage
-        EXMEM_MemToReg_i        : in  STD_LOGIC; -- MemToReg for instruction in MEM/WB stage (identifies LW)
+        -- Entradas desde las salidas del Registro EX/MEM (para la instrucción actualmente en la etapa MEM/WB)
+        EXMEM_RegWrite_i        : in  STD_LOGIC; -- RegWrite para la instrucción en la etapa MEM/WB
+        EXMEM_WriteRegAddr_i    : in  STD_LOGIC_VECTOR(4 downto 0); -- Rd para la instrucción en la etapa MEM/WB
+        EXMEM_MemToReg_i        : in  STD_LOGIC; -- MemToReg para la instrucción en la etapa MEM/WB (identifica LW)
 
-        -- Inputs from MEM/WB stage outputs (write-back to Register File)
-        MEMWB_RegWrite_i        : in  STD_LOGIC; -- RegWrite for instruction completing WB
-        MEMWB_WriteRegAddr_i    : in  STD_LOGIC_VECTOR(4 downto 0); -- Rd for instruction completing WB
+        -- Entradas desde las salidas de la etapa MEM/WB (escritura de retorno al Archivo de Registros)
+        MEMWB_RegWrite_i        : in  STD_LOGIC; -- RegWrite para la instrucción que completa WB
+        MEMWB_WriteRegAddr_i    : in  STD_LOGIC_VECTOR(4 downto 0); -- Rd para la instrucción que completa WB
 
-        -- Outputs
-        ForwardA_sel_o          : out STD_LOGIC_VECTOR(1 downto 0); -- Mux select for ALU input A
-        ForwardB_sel_o          : out STD_LOGIC_VECTOR(1 downto 0); -- Mux select for ALU input B
-        PC_Stall_o              : out STD_LOGIC; -- Stall PC and IF/ID register
-        IF_ID_Reg_Stall_o       : out STD_LOGIC; -- Stall IF/ID register (same as PC_Stall)
-        IDEX_Bubble_o           : out STD_LOGIC  -- Insert NOP/bubble in ID/EX stage output (to EX/MEM reg)
+        -- Salidas
+        ForwardA_sel_o          : out STD_LOGIC_VECTOR(1 downto 0); -- Selección del Mux para la entrada A de la ALU
+        ForwardB_sel_o          : out STD_LOGIC_VECTOR(1 downto 0); -- Selección del Mux para la entrada B de la ALU
+        PC_Stall_o              : out STD_LOGIC; -- Bloquear PC y registro IF/ID
+        IF_ID_Reg_Stall_o       : out STD_LOGIC; -- Bloquear registro IF/ID (igual que PC_Stall)
+        IDEX_Bubble_o           : out STD_LOGIC  -- Insertar NOP/burbuja en la salida de la etapa ID/EX (al registro EX/MEM)
     );
 end HazardUnit;
 
@@ -37,46 +43,46 @@ architecture Behavioral of HazardUnit is
     signal load_use_hazard : STD_LOGIC;
 begin
 
-    -- ** Stall Detection (Load-Use Hazard) **
-    -- Stall if instruction in ID/EX (using IF_ID_Rs_addr_i or IF_ID_Rt_addr_i)
-    -- depends on an LW instruction currently in EX/MEM (EXMEM_MemToReg_i = '1').
+    -- ** Detección de Bloqueo (Riesgo de Carga-Uso) **
+    -- Bloquear si la instrucción en ID/EX (usando IF_ID_Rs_addr_i o IF_ID_Rt_addr_i)
+    -- depende de una instrucción LW actualmente en EX/MEM (EXMEM_MemToReg_i = '1').
     load_use_hazard <= '1' when (EXMEM_RegWrite_i = '1' and EXMEM_MemToReg_i = '1' and EXMEM_WriteRegAddr_i /= "00000") and
                                ((EXMEM_WriteRegAddr_i = IF_ID_Rs_addr_i) or
                                 (EXMEM_WriteRegAddr_i = IF_ID_Rt_addr_i))
                        else '0';
 
     PC_Stall_o        <= load_use_hazard;
-    IF_ID_Reg_Stall_o <= load_use_hazard; -- Stall IF/ID if PC is stalled
-    IDEX_Bubble_o     <= load_use_hazard; -- Insert bubble if ID/EX instruction is stalled due to load-use
+    IF_ID_Reg_Stall_o <= load_use_hazard; -- Bloquear IF/ID si PC está bloqueado
+    IDEX_Bubble_o     <= load_use_hazard; -- Insertar burbuja si la instrucción ID/EX está bloqueada debido a carga-uso
 
-    -- ** Forwarding Logic **
-    -- Priority: Forward from EX/MEM boundary first, then from MEM/WB boundary.
-    -- Forwarding is only considered if not stalled (though typically forwarding logic is independent,
-    -- and the stall simply delays the dependent instruction until forwarding is possible or data is in reg file).
-    -- For simplicity here, forwarding signals are always calculated. The stall will ensure the
-    -- correct data is eventually available for forwarding or from reg file.
+    -- ** Lógica de Adelantamiento **
+    -- Prioridad: Adelantar desde el límite EX/MEM primero, luego desde el límite MEM/WB.
+    -- El adelantamiento solo se considera si no está bloqueado (aunque típicamente la lógica de adelantamiento es independiente,
+    -- y el bloqueo simplemente retrasa la instrucción dependiente hasta que el adelantamiento sea posible o los datos estén en el archivo de registros).
+    -- Para simplificar aquí, las señales de adelantamiento siempre se calculan. El bloqueo asegurará que
+    -- los datos correctos estén finalmente disponibles para el adelantamiento o desde el archivo de registros.
 
-    -- Forwarding for ALU Input A (sourced from IF_ID_Rs_addr_i)
+    -- Adelantamiento para la Entrada A de la ALU (proviene de IF_ID_Rs_addr_i)
     process(EXMEM_RegWrite_i, EXMEM_WriteRegAddr_i, MEMWB_RegWrite_i, MEMWB_WriteRegAddr_i, IF_ID_Rs_addr_i)
     begin
         if (EXMEM_RegWrite_i = '1' and EXMEM_WriteRegAddr_i = IF_ID_Rs_addr_i and EXMEM_WriteRegAddr_i /= "00000") then
-            ForwardA_sel_o <= "01"; -- Forward from EX/MEM (ALU result of previous instruction)
+            ForwardA_sel_o <= "01"; -- Adelantar desde EX/MEM (resultado ALU de la instrucción anterior)
         elsif (MEMWB_RegWrite_i = '1' and MEMWB_WriteRegAddr_i = IF_ID_Rs_addr_i and MEMWB_WriteRegAddr_i /= "00000") then
-            ForwardA_sel_o <= "10"; -- Forward from MEM/WB (data being written back)
+            ForwardA_sel_o <= "10"; -- Adelantar desde MEM/WB (datos que se están escribiendo de retorno)
         else
-            ForwardA_sel_o <= "00"; -- No forwarding, use register file
+            ForwardA_sel_o <= "00"; -- Sin adelantamiento, usar archivo de registros
         end if;
     end process;
 
-    -- Forwarding for ALU Input B (sourced from IF_ID_Rt_addr_i)
+    -- Adelantamiento para la Entrada B de la ALU (proviene de IF_ID_Rt_addr_i)
     process(EXMEM_RegWrite_i, EXMEM_WriteRegAddr_i, MEMWB_RegWrite_i, MEMWB_WriteRegAddr_i, IF_ID_Rt_addr_i)
     begin
         if (EXMEM_RegWrite_i = '1' and EXMEM_WriteRegAddr_i = IF_ID_Rt_addr_i and EXMEM_WriteRegAddr_i /= "00000") then
-            ForwardB_sel_o <= "01"; -- Forward from EX/MEM
+            ForwardB_sel_o <= "01"; -- Adelantar desde EX/MEM
         elsif (MEMWB_RegWrite_i = '1' and MEMWB_WriteRegAddr_i = IF_ID_Rt_addr_i and MEMWB_WriteRegAddr_i /= "00000") then
-            ForwardB_sel_o <= "10"; -- Forward from MEM/WB
+            ForwardB_sel_o <= "10"; -- Adelantar desde MEM/WB
         else
-            ForwardB_sel_o <= "00"; -- No forwarding, use register file
+            ForwardB_sel_o <= "00"; -- Sin adelantamiento, usar archivo de registros
         end if;
     end process;
 

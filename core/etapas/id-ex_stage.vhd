@@ -1,28 +1,34 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL; -- For sign extension, resize, sll
+use IEEE.NUMERIC_STD.ALL; -- Para extensión de signo, redimensionamiento, sll
 
 library work;
--- Assuming ControlUnit, ALUControl, and ALU are compiled into 'work'
+-- Suponiendo que ControlUnit, ALUControl y ALU están compilados en 'work'
 
 entity id_ex_stage is
     Port (
-        -- Inputs
+        -- Entradas
         clk                   : in  STD_LOGIC;
         reset                 : in  STD_LOGIC;
         Instruction_i         : in  STD_LOGIC_VECTOR(31 downto 0);
         PC_plus_4_i           : in  STD_LOGIC_VECTOR(31 downto 0);
-        RegData1_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Reg source for ALU A
-        RegData2_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Reg source for ALU B
+        RegData1_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Registro fuente para ALU A
+        RegData2_i            : in  STD_LOGIC_VECTOR(31 downto 0); -- Registro fuente para ALU B
 
-        -- Forwarding and Hazard Control Inputs
+        -- Entradas de Control de Adelantamiento y Riesgos
         ForwardA_sel_i          : in  STD_LOGIC_VECTOR(1 downto 0);
         ForwardB_sel_i          : in  STD_LOGIC_VECTOR(1 downto 0);
         Forward_EXMEM_ALUResult_i : in  STD_LOGIC_VECTOR(31 downto 0);
         Forward_MEMWB_WriteData_i : in  STD_LOGIC_VECTOR(31 downto 0);
         Bubble_IDEX_i           : in  STD_LOGIC;
 
-        -- Outputs to ID-EX/MEM-WB Register
+        -- Salidas al Registro ID-EX/MEM-WB
         ALUResult_o           : out STD_LOGIC_VECTOR(31 downto 0);
         WriteDataMem_o        : out STD_LOGIC_VECTOR(31 downto 0);
         WriteRegAddr_o        : out STD_LOGIC_VECTOR(4 downto 0);
@@ -33,19 +39,19 @@ entity id_ex_stage is
         MemToReg_o            : out STD_LOGIC;
         ALU_Zero_o            : out STD_LOGIC;
 
-        -- Outputs for PC control in IF stage (routed via MIPS.vhd)
+        -- Salidas para control del PC en la etapa IF (enrutadas a través de MIPS.vhd)
         PCSrc_o               : out STD_LOGIC_VECTOR(1 downto 0);
         Branch_Target_Addr_o  : out STD_LOGIC_VECTOR(31 downto 0);
         Jump_Target_Addr_o    : out STD_LOGIC_VECTOR(31 downto 0);
         
-        -- Outputs for Register File read addresses (routed via MIPS.vhd)
+        -- Salidas para direcciones de lectura del Archivo de Registros (enrutadas a través de MIPS.vhd)
         ReadReg1Addr_o        : out STD_LOGIC_VECTOR(4 downto 0);
         ReadReg2Addr_o        : out STD_LOGIC_VECTOR(4 downto 0)
     );
 end id_ex_stage;
 
 architecture Behavioral of id_ex_stage is
-    -- Instruction fields
+    -- Campos de instrucción
     signal s_opcode : std_logic_vector(5 downto 0);
     signal s_rs     : std_logic_vector(4 downto 0);
     signal s_rt     : std_logic_vector(4 downto 0);
@@ -54,7 +60,7 @@ architecture Behavioral of id_ex_stage is
     signal s_immediate_16 : std_logic_vector(15 downto 0);
     signal s_immediate_extended : std_logic_vector(31 downto 0);
 
-    -- Raw Control Unit signals
+    -- Señales de la Unidad de Control en bruto
     signal s_RegWrite    : std_logic;
     signal s_RegDst      : std_logic;
     signal s_Branch      : std_logic;
@@ -65,19 +71,19 @@ architecture Behavioral of id_ex_stage is
     signal s_Jump        : std_logic;
     signal s_alu_op_from_cu : std_logic_vector(1 downto 0);
 
-    -- ALUControl signals
+    -- Señales de ALUControl
     signal s_final_alu_control : std_logic_vector(3 downto 0);
 
-    -- ALU input signals after forwarding
+    -- Señales de entrada de la ALU después del adelantamiento
     signal s_alu_input_a         : std_logic_vector(31 downto 0);
     signal s_alu_input_b_reg_src : std_logic_vector(31 downto 0);
-    signal s_alu_operand_b       : std_logic_vector(31 downto 0); -- Final operand B for ALU (can be immediate)
+    signal s_alu_operand_b       : std_logic_vector(31 downto 0); -- Operando B final para la ALU (puede ser inmediato)
 
-    -- ALU output signals
+    -- Señales de salida de la ALU
     signal s_alu_result    : std_logic_vector(31 downto 0);
     signal s_alu_zero      : std_logic;
 
-    -- Effective control signals (can be zeroed by bubble)
+    -- Señales de control efectivas (pueden ser anuladas por una burbuja)
     signal s_eff_RegWrite        : std_logic;
     signal s_eff_MemRead         : std_logic;
     signal s_eff_MemWrite        : std_logic;
@@ -85,7 +91,7 @@ architecture Behavioral of id_ex_stage is
     signal s_eff_Branch          : std_logic;
     signal s_eff_Jump            : std_logic;
 
-    -- Branch logic
+    -- Lógica de bifurcación
     signal s_branch_condition_met : std_logic;
 
     component ControlUnit is
@@ -122,7 +128,7 @@ architecture Behavioral of id_ex_stage is
     end component;
 
 begin
-    -- Instruction Field Extraction
+    -- Extracción de Campos de Instrucción
     s_opcode <= Instruction_i(31 downto 26);
     s_rs     <= Instruction_i(25 downto 21);
     s_rt     <= Instruction_i(20 downto 16);
@@ -156,28 +162,28 @@ begin
     ReadReg1Addr_o <= s_rs;
     ReadReg2Addr_o <= s_rt;
 
-    -- Forwarding Mux for ALU Input A
+    -- Mux de Adelantamiento para Entrada A de la ALU
     alu_input_a_mux_proc: process(ForwardA_sel_i, RegData1_i, Forward_EXMEM_ALUResult_i, Forward_MEMWB_WriteData_i)
     begin
         case ForwardA_sel_i is
-            when "01" => -- Forward from EX/MEM result (previous ALU op)
+            when "01" => -- Adelantar desde resultado EX/MEM (operación ALU anterior)
                 s_alu_input_a <= Forward_EXMEM_ALUResult_i;
-            when "10" => -- Forward from MEM/WB result (older op, could be LW or ALU)
+            when "10" => -- Adelantar desde resultado MEM/WB (operación más antigua, podría ser LW o ALU)
                 s_alu_input_a <= Forward_MEMWB_WriteData_i;
-            when others => -- "00" or default
+            when others => -- "00" o por defecto
                 s_alu_input_a <= RegData1_i;
         end case;
     end process alu_input_a_mux_proc;
 
-    -- Forwarding Mux for Register Source of ALU Input B
+    -- Mux de Adelantamiento para Fuente de Registro de Entrada B de la ALU
     alu_input_b_reg_src_mux_proc: process(ForwardB_sel_i, RegData2_i, Forward_EXMEM_ALUResult_i, Forward_MEMWB_WriteData_i)
     begin
         case ForwardB_sel_i is
-            when "01" => -- Forward from EX/MEM result
+            when "01" => -- Adelantar desde resultado EX/MEM
                 s_alu_input_b_reg_src <= Forward_EXMEM_ALUResult_i;
-            when "10" => -- Forward from MEM/WB result
+            when "10" => -- Adelantar desde resultado MEM/WB
                 s_alu_input_b_reg_src <= Forward_MEMWB_WriteData_i;
-            when others => -- "00" or default
+            when others => -- "00" o por defecto
                 s_alu_input_b_reg_src <= RegData2_i;
         end case;
     end process alu_input_b_reg_src_mux_proc;
@@ -194,9 +200,9 @@ begin
         );
 
     WriteRegAddr_o <= s_rt when s_RegDst = '0' else s_rd;
-    WriteDataMem_o <= s_alu_input_b_reg_src; -- For SW, this should be the data from Rt (after forwarding)
+    WriteDataMem_o <= s_alu_input_b_reg_src; -- Para SW, esto debería ser el dato de Rt (después del adelantamiento)
 
-    -- Bubble Logic for Control Signals
+    -- Lógica de Burbuja para Señales de Control
     s_eff_RegWrite <= s_RegWrite and not Bubble_IDEX_i;
     s_eff_MemRead  <= s_MemRead  and not Bubble_IDEX_i;
     s_eff_MemWrite <= s_MemWrite and not Bubble_IDEX_i;
@@ -204,7 +210,7 @@ begin
     s_eff_Branch   <= s_Branch   and not Bubble_IDEX_i;
     s_eff_Jump     <= s_Jump     and not Bubble_IDEX_i;
 
-    -- PC Control Logic
+    -- Lógica de Control del PC
     s_branch_condition_met <= s_eff_Branch and s_alu_zero;
 
     pc_source_logic: process(s_eff_Jump, s_branch_condition_met)
@@ -218,7 +224,7 @@ begin
         end if;
     end process pc_source_logic;
 
-    -- Pass-through effective control signals and data to ID-EX/MEM-WB register
+    -- Pasar señales de control efectivas y datos al registro ID-EX/MEM-WB
     ALUResult_o      <= s_alu_result;
     ALU_Zero_o       <= s_alu_zero;
     PC_plus_4_pass_o <= PC_plus_4_i;

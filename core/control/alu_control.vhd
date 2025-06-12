@@ -1,10 +1,16 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
 entity ALUControl is
     port (
         ALUOp      : in  std_logic_vector(1 downto 0);
-        Funct      : in  std_logic_vector(5 downto 0); -- solo se usa si R-type
+        Funct      : in  std_logic_vector(5 downto 0); -- solo se usa si es tipo R
         ALUControl : out std_logic_vector(3 downto 0)
     );
 end entity ALUControl;
@@ -20,7 +26,7 @@ begin
             when "01" =>  -- BEQ -> Resta
                 ALUControl <= "0110"; -- SUB
 
-            when "10" =>  -- R-type: usar funct
+            when "10" =>  -- Tipo R: usar funct
                 case Funct is
                     when "100000" =>  -- ADD
                         ALUControl <= "0010";
@@ -33,11 +39,11 @@ begin
                     when "101010" =>  -- SLT
                         ALUControl <= "0111";
                     when others =>
-                        ALUControl <= "1111"; -- Instrucción R-type no válida / Undefined
+                        ALUControl <= "1111"; -- Instrucción tipo R no válida / Indefinida
                 end case;
 
             when others =>
-                ALUControl <= "1111"; -- ALUOp no válido / Undefined
+                ALUControl <= "1111"; -- ALUOp no válido / Indefinido
         end case;
     end process;
 end architecture Behavioral;
