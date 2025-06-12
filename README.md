@@ -1,4 +1,4 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/benjamalegni/tp3)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/benjamalegni/mips-3-stages)
 
 # Resumen del Procesador MIPS
 
