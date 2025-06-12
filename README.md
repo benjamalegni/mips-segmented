@@ -1,89 +1,198 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/benjamalegni/mips-segmented)
 
-# Resumen del Procesador MIPS
+Purpose and Scope
+This document provides a high-level introduction to the MIPS processor implementation located in this repository. The system implements a complete 3-stage pipelined MIPS processor with Harvard architecture, hazard detection, and comprehensive testing infrastructure.
 
-Este documento proporciona una visión general de alto nivel de la implementación del procesador MIPS con pipeline, enfocándose en la arquitectura general del sistema, el diseño del pipeline y las interacciones entre componentes clave.
+This overview covers the system architecture, pipeline organization, and key component relationships. For detailed implementation of individual pipeline stages, see Pipeline Stages. For hazard detection mechanisms, see Hazard Detection and Resolution. For testing procedures, see Testing and Verification.
 
-## Propósito y Alcance
+System Architecture
+The MIPS processor is implemented as a coordinated 3-stage pipeline system with separate instruction and data memory paths. The top-level MIPS entity orchestrates all pipeline stages and shared resources.
 
-Este documento cubre la entidad `MIPS` de nivel superior y la coordinación entre las tres etapas principales del pipeline: Instruction Fetch (IF), Instruction Decode/Execute (ID-EX), y Memory/Write-Back (MEM-WB). [1](#0-0) 
+Top-Level System Organization
+MIPS Processor System
 
-## Arquitectura del Sistema
+Testing
 
-El procesador MIPS está implementado como una arquitectura de pipeline de 3 etapas coordinada por la entidad `MIPS` de nivel superior. El sistema sigue una arquitectura Harvard con rutas separadas para memoria de instrucciones y datos.
+Storage Components
 
-### Organización del Sistema de Nivel Superior
+Control System
 
-La entidad `MIPS` orquesta tres etapas de pipeline conectadas por registros de pipeline, con componentes dedicados de almacenamiento y control. [2](#0-1) 
+Pipeline Registers
 
-### Flujo de Datos del Pipeline
+Pipeline Stages
 
-El procesador implementa un pipeline de 3 etapas donde las instrucciones fluyen a través de registros de pipeline dedicados entre etapas:
+mips_tb
+mips_tb.vhd
 
-| Etapa | Componente | Registro de Entrada | Registro de Salida | Función Principal |
-|-------|------------|--------------------|--------------------|-------------------|
-| 1 | `if_stage` | - | `reg_if_id` | Búsqueda de instrucciones, gestión de PC |
-| 2 | `id_ex_stage` | `reg_if_id` | `reg_idex_memwb` | Decodificación, ejecución, generación de control |
-| 3 | `mem_wb_stage` | `reg_idex_memwb` | - | Acceso a memoria, write-back de registros |
+MIPS
+MIPS.vhd
+Top-Level Orchestrator
 
-## Interfaces de Componentes Clave
+if_stage
+core/etapas/if_stage.vhd
+Instruction Fetch
 
-### Enrutamiento de Señales a través de la Entidad MIPS
+idex_stage
+core/etapas/idex_stage.vhd
+Decode/Execute
 
-La entidad `MIPS` actúa como coordinador central, enrutando señales entre etapas del pipeline y recursos compartidos:
+memwb_stage
+core/etapas/memwb_stage.vhd
+Memory/Write-Back
 
-#### Interfaz de la Etapa IF
-- **Entradas**: `PCSrc_i`, `Branch_Target_Addr_i`, `Jump_Target_Addr_i` desde la etapa ID-EX [3](#0-2) 
-- **Salidas**: `Reg_IF_ID_out`, `Reg_IF_ID_PC_plus_4_out` al registro de pipeline [4](#0-3) 
-- **Memoria**: Conexión directa al componente `Memory` de instrucciones
+reg_if_id
+IF-ID Pipeline Register
 
-#### Interfaz de la Etapa ID-EX
-- **Entradas**: Instrucción y PC+4 desde `reg_if_id`, datos de registro desde `register_file` [5](#0-4) 
-- **Salidas**: Resultados de ALU y señales de control a `reg_idex_memwb`, control de PC a etapa IF [6](#0-5) 
-- **Componentes**: Contiene instancias de `ControlUnit`, `ALUControl`, y `ALU`
+reg_idex_memwb
+ID-MEM Pipeline Register
 
-#### Interfaz de la Etapa MEM-WB
-- **Entradas**: Resultados de ALU y señales de control desde `reg_idex_memwb`
-- **Salidas**: Datos de write-back y control a `register_file`
-- **Memoria**: Conexión directa al componente `DataMemory`
+ControlUnit
+core/control/control_unit.vhd
 
-### Mecanismo de Control del Pipeline
+ALUControl
+core/control/alu_control.vhd
 
-El procesador implementa controles de flush y stall para el manejo de riesgos del pipeline: [7](#0-6) 
+HazardUnit
+core/hazard_unit.vhd
 
-El control de flush se genera basado en decisiones de branch/jump: [8](#0-7) 
+Memory
+Instruction Memory Component
 
-## Jerarquía de Memoria
+DataMemory
+Data Memory Component
 
-El sistema implementa una arquitectura Harvard con espacios de memoria separados para instrucciones y datos:
+register_file
+core/unidades/register_file.vhd
 
-### Ruta de Memoria de Instrucciones
-- **Componente**: `Memory` con carga configurable de archivos ELF [9](#0-8) 
-- **Interfaz**: Dirección desde PC, salida de instrucción de 32 bits
-- **Configuración**: Capacidad de 1KB (256 x palabras de 32 bits)
+program.hex
+program2.hex
 
-### Ruta de Memoria de Datos
-- **Componente**: `DataMemory` con almacenamiento direccionable por bytes
-- **Interfaz**: Dirección desde resultado de ALU, datos desde archivo de registros
-- **Control**: Señales `MemRead` y `MemWrite` desde unidad de control
+Sources: 
+MIPS.vhd
+ 
+core/etapas/if_stage.vhd
+ 
+core/etapas/idex_stage.vhd
+ 
+core/etapas/memwb_stage.vhd
+ 
+core/control/control_unit.vhd
+ 
+core/control/alu_control.vhd
+ 
+core/hazard_unit.vhd
+ 
+core/unidades/register_file.vhd
+ 
+mips_tb.vhd
 
-### Archivo de Registros
-- **Componente**: `register_file` con capacidad de lectura de puerto dual [10](#0-9) 
-- **Configuración**: 32 registros x ancho de 32 bits
-- **Interfaz**: Direcciones de lectura desde etapa ID-EX, puerto de escritura desde etapa MEM-WB
+Pipeline Organization
+The processor implements a 3-stage pipeline with dedicated pipeline registers for inter-stage communication and hazard management.
 
-## Generación de Señales de Control
+Pipeline Data Flow
+Shared Resources
 
-Las señales de control se generan en la etapa ID-EX a través de una jerarquía de dos niveles:
+Stage 3: MEM-WB
 
-1. **Unidad de Control Principal**: Genera señales de control de alto nivel desde el opcode de la instrucción
-2. **Unidad de Control de ALU**: Genera códigos específicos de operación de ALU desde ALUOp y campo de función
+Pipeline Register 2
 
-Las señales de control luego se almacenan en buffer a través del registro de pipeline `reg_idex_memwb` para sincronizar con las operaciones de la etapa MEM-WB.
+Stage 2: ID-EX
 
-## Notas
+Pipeline Register 1
 
-Esta implementación representa un procesador MIPS clásico de 3 etapas con arquitectura Harvard. El diseño incluye mecanismos de control de pipeline para manejar riesgos, y utiliza registros de pipeline dedicados para mantener la sincronización entre etapas. La entidad `MIPS` de nivel superior actúa como el coordinador central que conecta todas las etapas y componentes de memoria.
+Stage 1: IF
 
-Wiki pages you might want to explore:
-- [MIPS Processor Overview (benjamalegni/tp3)](/wiki/benjamalegni/tp3#1)
+Program Counter
+
+Instruction Fetch Logic
+
+Instruction Memory
+1KB capacity
+
+reg_if_id
+32-bit instruction
+32-bit PC+4
+
+Instruction Decode
+
+ALU Execution
+
+Control Generation
+
+Hazard Detection
+
+reg_idex_memwb
+ALU Result
+Control Signals
+Write Data
+
+Memory Access
+
+Register Writeback
+
+Data Memory
+Byte addressable
+
+register_file
+32x32-bit registers
+Dual-port read
+
+HazardUnit
+Forwarding & Stalling
+
+Sources: 
+core/etapas/if_stage.vhd
+ 
+core/etapas/idex_stage.vhd
+ 
+core/etapas/memwb_stage.vhd
+ 
+core/hazard_unit.vhd
+ 
+core/unidades/register_file.vhd
+
+Key Subsystems
+Pipeline Stages
+IF Stage (if_stage): Manages program counter and fetches instructions from instruction memory
+ID-EX Stage (idex_stage): Decodes instructions, performs ALU operations, and generates control signals
+MEM-WB Stage (memwb_stage): Handles data memory access and register file write-back operations
+Control Hierarchy
+Main Control Unit (ControlUnit): Generates high-level control signals from instruction opcodes
+ALU Control Unit (ALUControl): Produces specific ALU operation codes based on instruction type
+Hazard Unit (HazardUnit): Manages data forwarding, pipeline stalling, and bubble insertion
+Memory System
+Harvard Architecture: Separate instruction memory (Memory) and data memory (DataMemory)
+Register File (register_file): 32-register storage with dual-port read capability
+Pipeline Registers: reg_if_id and reg_idex_memwb for inter-stage data buffering
+Supported Instructions
+The processor implements core MIPS instruction types:
+
+Category	Instructions	Control Unit
+R-type	add, sub, and, or, slt	ControlUnit + ALUControl
+Load	lw (load word)	ControlUnit
+Store	sw (store word)	ControlUnit
+Branch	beq (branch equal)	ControlUnit
+Jump	j (jump)	ControlUnit
+Testing Infrastructure
+Testbench (mips_tb): Comprehensive verification environment
+Test Programs: program.hex and program2.hex for functional verification
+ELF Loading: Support for loading executable programs into instruction memory
+Sources: 
+README.md
+1-90
+ 
+core/control/control_unit.vhd
+ 
+core/control/alu_control.vhd
+ 
+mips_tb.vhd
+
+Implementation Features
+The MIPS processor includes several advanced features for pipeline efficiency:
+
+Data Forwarding: Resolves data hazards through forwarding paths between pipeline stages
+Hazard Detection: Identifies load-use hazards and control hazards
+Pipeline Control: Implements stalling and bubble insertion for hazard resolution
+Harvard Memory Model: Optimizes instruction and data access with separate memory spaces
+Comprehensive Testing: Includes testbench and multiple test programs for verification
+This implementation provides a complete, functional MIPS processor suitable for educational purposes and basic computation tasks.
