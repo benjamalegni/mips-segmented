@@ -1,4 +1,4 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/benjamalegni/mips-3-stages)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/benjamalegni/mips-segmented)
 
 # Resumen del Procesador MIPS
 
