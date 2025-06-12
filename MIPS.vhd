@@ -143,7 +143,7 @@ architecture Behavioral of MIPS is
         Port (
             IF_ID_Rs_addr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
             IF_ID_Rt_addr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
-            -- IF_ID_Inst_is_LW_i   : in  STD_LOGIC; -- Eliminado de HU según su definición
+            IF_ID_Inst_is_LW_i   : in  STD_LOGIC; -- Added this line
             EXMEM_RegWrite_i     : in  STD_LOGIC;
             EXMEM_WriteRegAddr_i : in  STD_LOGIC_VECTOR(4 downto 0);
             EXMEM_MemToReg_i     : in  STD_LOGIC;
@@ -168,6 +168,9 @@ architecture Behavioral of MIPS is
     -- Rs/Rt extraídos de IF/ID para entrada de la Unidad de Riesgos
     signal s_if_id_rs_addr_for_hu : std_logic_vector(4 downto 0);
     signal s_if_id_rt_addr_for_hu : std_logic_vector(4 downto 0);
+
+    -- Señal para verificar si la instrucción en IF/ID es LW
+    signal s_if_id_inst_is_lw : std_logic;
 
     -- Señales para conexiones del Archivo de Registros
     signal s_rf_ReadData1          : std_logic_vector(31 downto 0);
@@ -226,12 +229,16 @@ begin
     s_if_id_rs_addr_for_hu <= s_idex_Instruction_i(25 downto 21);
     s_if_id_rt_addr_for_hu <= s_idex_Instruction_i(20 downto 16);
 
+    -- Check if the instruction in IF/ID stage (output of if_idex_reg_inst) is a load word (lw)
+    -- Opcode for lw is "100011"
+    s_if_id_inst_is_lw <= '1' when s_idex_Instruction_i(31 downto 26) = "100011" else '0';
+
     -- Instanciación de la Unidad de Riesgos
     hazard_unit_inst : entity work.HazardUnit
         port map (
             IF_ID_Rs_addr_i      => s_if_id_rs_addr_for_hu,
             IF_ID_Rt_addr_i      => s_if_id_rt_addr_for_hu,
-            -- IF_ID_Inst_is_LW_i   => '0', -- Esta entrada fue eliminada de la definición de HU.
+            IF_ID_Inst_is_LW_i   => s_if_id_inst_is_lw, -- Added this line
             EXMEM_RegWrite_i     => s_memwb_RegWrite_i,     -- RegWrite desde la salida del registro EX/MEM (s_memwb_... son salidas de reg_idex_memwb)
             EXMEM_WriteRegAddr_i => s_memwb_WriteRegAddr_i, -- WriteRegAddr desde la salida del registro EX/MEM
             EXMEM_MemToReg_i     => s_memwb_MemToReg_i,     -- MemToReg desde la salida del registro EX/MEM

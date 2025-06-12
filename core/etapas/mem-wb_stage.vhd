@@ -39,16 +39,16 @@ architecture Behavioral of mem_wb_stage is
     -- Señal para el dato leído desde la Memoria de Datos
     signal s_mem_read_data : std_logic_vector(31 downto 0);
 
-    -- Componente para la Memoria de Datos (asegúrese de que coincida con su componente DataMemory real)
-    component DataMemory is
+    -- Componente para la Memoria de Datos (asegúrese de que coincida con su componente Memory real)
+    component Memory is
         port (
-            CLK         : in  std_logic;
-            RESET       : in  std_logic;
-            MemRead     : in  std_logic;
-            MemWrite    : in  std_logic;
-            Address     : in  std_logic_vector(31 downto 0);
-            WriteData   : in  std_logic_vector(31 downto 0);
-            ReadData    : out std_logic_vector(31 downto 0)
+            Clk         : in  std_logic;
+            Reset       : in  std_logic;
+            RdStb       : in  std_logic;
+            WrStb       : in  std_logic;
+            Addr        : in  std_logic_vector(31 downto 0);
+            DataIn      : in  std_logic_vector(31 downto 0);
+            DataOut     : out std_logic_vector(31 downto 0)
         );
     end component;
 
@@ -57,15 +57,15 @@ begin
     -- Instanciar Memoria de Datos
     -- La dirección para las operaciones de memoria proviene del resultado de la ALU.
     -- El dato a escribir en memoria (para SW) proviene de WriteDataMem_i.
-    data_memory_inst: entity work.DataMemory -- O la entidad específica de la librería si no está directamente en 'work'
+    data_memory_inst: entity work.Memory -- O la entidad específica de la librería si no está directamente en 'work'
         port map (
-            CLK       => clk_i,
-            RESET     => reset_i,
-            MemRead   => MemRead_i,
-            MemWrite  => MemWrite_i,
-            Address   => ALUResult_i,
-            WriteData => WriteDataMem_i,
-            ReadData  => s_mem_read_data
+            Clk       => clk_i,
+            Reset     => reset_i,
+            RdStb     => MemRead_i,
+            WrStb     => MemWrite_i,
+            Addr      => ALUResult_i,
+            DataIn    => WriteDataMem_i,
+            DataOut   => s_mem_read_data
         );
 
     -- Mux de Write-Back: Selecciona el dato a escribir en el archivo de registros.
