@@ -1,6 +1,0 @@
--- ======================
--- ====    Autor LB Malegni
--- ====    Arquitectura de Computadoras 1 - 2025
---
--- ====== MIPS
--- ======================
