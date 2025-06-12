@@ -1,10 +1,16 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity mux2_1 is
     generic (
-        N : integer := 32  -- size del bus de direcciones
+        N : integer := 32  -- Tamaño del bus de direcciones
     );
     port (
         mux_ctl  : in  std_logic;                     -- Señal de control

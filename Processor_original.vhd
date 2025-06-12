@@ -13,13 +13,13 @@ entity Processor is
 port(
 	Clk         : in  std_logic;
 	Reset       : in  std_logic;
-	-- Memoria de instrucciones
+	-- Instruction memory
 	I_Addr      : out std_logic_vector(31 downto 0);
 	I_RdStb     : out std_logic;
 	I_WrStb     : out std_logic;
 	I_DataOut   : out std_logic_vector(31 downto 0);
 	I_DataIn    : in  std_logic_vector(31 downto 0);
-	-- Memoria de datos
+	-- Data memory
 	D_Addr      : out std_logic_vector(31 downto 0);
 	D_RdStb     : out std_logic;
 	D_WrStb     : out std_logic;
@@ -30,7 +30,7 @@ end Processor;
 
 architecture processor_arch of Processor is
 
-    -- declaración de componentes ALU
+    -- declaraci�n de componentes ALU
     component ALU
         port  (a : in std_logic_vector(31 downto 0);
                b : in std_logic_vector(31 downto 0);
@@ -39,7 +39,7 @@ architecture processor_arch of Processor is
                result : out std_logic_vector(31 downto 0));
     end component;
 
-    -- declaración de componente Registers
+    -- declaraci�n de componente Registers
     component Registers
         port  (clk : in std_logic;
                reset : std_logic;
@@ -52,13 +52,13 @@ architecture processor_arch of Processor is
                data2_rd : out std_logic_vector(31 downto 0));
     end component;
 
-    -- señales de control
+    -- se�ales de control
     signal RegWrite, RegDst, Branch, MemRead, MemtoReg, MemWrite, ALUSrc, Jump: std_logic;
     signal ALUOp: std_logic_vector(1 downto 0);
 
 -- otras
-     signal reg_wr: std_logic_vector(4 downto 0); -- dirección del registro de escritura
-    signal data1_reg, data2_reg: std_logic_vector(31 downto 0); -- registros leídos desde el banco de registro
+     signal reg_wr: std_logic_vector(4 downto 0); -- direcci�n del registro de escritura
+    signal data1_reg, data2_reg: std_logic_vector(31 downto 0); -- registros le�dos desde el banco de registro
     signal data_w_reg: std_logic_vector(31 downto 0); -- dato a escribir en el banco de registros
 
     signal pc_4: std_logic_vector(31 downto 0); -- para incremento de PC
@@ -66,12 +66,12 @@ architecture processor_arch of Processor is
     signal pc_jump: std_logic_vector(31 downto 0); -- para salto incondicional
     signal reg_pc, next_reg_pc: std_logic_vector(31 downto 0); -- correspondientes al registro del program counter
 
-    signal ALU_oper_b : std_logic_vector(31 downto 0); -- correspondiente al segundo operando de ALU
-    signal ALU_control: std_logic_vector(2 downto 0); -- señales de control de la ALU
+    signal ALU_oper_b : std_logic_vector(31 downto 0); -- corrspondiente al segundo operando de ALU
+    signal ALU_control: std_logic_vector(2 downto 0); -- se�ales de control de la ALU
     signal ALU_zero: std_logic; -- flag zero de la ALU
     signal ALU_result: std_logic_vector(31 downto 0); -- resultado de la ALU
 
-    signal inm_extended: std_logic_vector(31 downto 0); -- describe el operando inmediato de la instrucción extendido a 32 bits
+    signal inm_extended: std_logic_vector(31 downto 0); -- describe el operando inmediato de la instrucci�n extendido a 32 bits
 
 begin
 
@@ -83,7 +83,7 @@ begin
 
 
 
--- Instanciación de banco de registros
+-- Instanciaci�n de banco de registros
     E_Regs:  Registers
 	   Port map (
 			clk => clk,
@@ -97,17 +97,17 @@ begin
 			data2_rd => data2_reg);
 
 
--- mux para destino de escritura en banco de registros
+-- mux de para destino de escritura en banco de registros
     reg_wr <= I_DataIn(20 downto 16) when (RegDst='0') else I_DataIn(15 downto 11);
 
--- extensión de signo del operando inmediato de la instrucción
+-- extensi�n de signo del operando inmediato de la instrucci�n
     inm_extended(31 downto 16) <= x"FFFF" when (I_DataIn(15)='1') else x"0000";
     inm_extended(15 downto 0) <= I_DataIn(15 downto 0);
 
--- mux correspondiente al segundo operando de ALU
+-- mux correspondiente a segundo operando de ALU
     ALU_oper_b <= data2_reg when (ALUSrc='0') else inm_extended;
 
--- Instanciación de ALU
+-- Instanciaci�n de ALU
     E_ALU: ALU port map(
             a => data1_reg,
             b => ALU_oper_b,
@@ -124,7 +124,7 @@ begin
             when "00" =>
                 ALU_control <= "010";
 
-            -- Tipo R
+            -- R-type
             when "10" =>
                 if (I_DataIn(5 downto 0) = "100000") then
                     ALU_control <= "010"; --add
@@ -178,7 +178,7 @@ begin
     E_UC: process (I_DataIn)
     begin
         case (I_DataIn(31 downto 26)) is
-            -- Tipo R
+            -- R-type
             when "000000" =>
                 RegWrite <= '1';
                 RegDst <= '1';

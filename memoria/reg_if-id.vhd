@@ -1,3 +1,9 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL; -- For (others => '0') with std_logic_vector

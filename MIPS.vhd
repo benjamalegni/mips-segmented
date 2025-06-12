@@ -1,8 +1,14 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-library work; -- Assuming components are compiled into work
+library work; -- Suponiendo que los componentes se compilan en work
 
 entity MIPS is
     port (
@@ -13,7 +19,7 @@ end MIPS;
 
 architecture Behavioral of MIPS is
 
-    -- Component Declarations --
+    -- Declaraciones de Componentes --
 
     component if_stage is
         Port (
@@ -23,18 +29,18 @@ architecture Behavioral of MIPS is
             Branch_Target_Addr_i    : in  std_logic_vector(31 downto 0);
             Jump_Target_Addr_i      : in  std_logic_vector(31 downto 0);
             Flush_Reg_i             : in  std_logic;
-            Stall_Reg_i             : in  std_logic; -- Controlled by Hazard Unit PC_Stall
+            Stall_Reg_i             : in  std_logic; -- Controlado por la Unidad de Riesgos PC_Stall
             Reg_IF_ID_out           : out std_logic_vector(31 downto 0);
             Reg_IF_ID_PC_plus_4_out : out std_logic_vector(31 downto 0)
         );
     end component;
 
-    component reg_if_id is -- Acts as IF/ID-EX Register
+    component reg_if_id is -- Actúa como Registro IF/ID-EX
         Port (
             clk            : in  STD_LOGIC;
             reset          : in  STD_LOGIC;
             flush          : in  STD_LOGIC;
-            stall          : in  STD_LOGIC; -- Controlled by Hazard Unit PC_Stall
+            stall          : in  STD_LOGIC; -- Controlado por la Unidad de Riesgos PC_Stall
             PC_plus_4_in   : in  STD_LOGIC_VECTOR(31 downto 0);
             Instruction_in : in  STD_LOGIC_VECTOR(31 downto 0);
             PC_plus_4_out  : out STD_LOGIC_VECTOR(31 downto 0);
@@ -42,7 +48,7 @@ architecture Behavioral of MIPS is
         );
     end component;
 
-    component id_ex_stage is -- Updated Component
+    component id_ex_stage is -- Componente Actualizado
         Port (
             clk                       : in  STD_LOGIC;
             reset                     : in  STD_LOGIC;
@@ -50,13 +56,13 @@ architecture Behavioral of MIPS is
             PC_plus_4_i               : in  STD_LOGIC_VECTOR(31 downto 0);
             RegData1_i                : in  STD_LOGIC_VECTOR(31 downto 0);
             RegData2_i                : in  STD_LOGIC_VECTOR(31 downto 0);
-            -- Forwarding and Bubble Inputs
+            -- Entradas de Adelantamiento y Burbuja
             ForwardA_sel_i            : in  STD_LOGIC_VECTOR(1 downto 0);
             ForwardB_sel_i            : in  STD_LOGIC_VECTOR(1 downto 0);
             Forward_EXMEM_ALUResult_i : in  STD_LOGIC_VECTOR(31 downto 0);
             Forward_MEMWB_WriteData_i : in  STD_LOGIC_VECTOR(31 downto 0);
             Bubble_IDEX_i             : in  STD_LOGIC;
-            -- Outputs
+            -- Salidas
             ALUResult_o               : out STD_LOGIC_VECTOR(31 downto 0);
             WriteDataMem_o            : out STD_LOGIC_VECTOR(31 downto 0);
             WriteRegAddr_o            : out STD_LOGIC_VECTOR(4 downto 0);
@@ -74,12 +80,12 @@ architecture Behavioral of MIPS is
         );
     end component;
 
-    component reg_idex_memwb is -- ID-EX/MEM-WB Register
+    component reg_idex_memwb is -- Registro ID-EX/MEM-WB
         Port (
             clk                 : in  STD_LOGIC;
             reset               : in  STD_LOGIC;
             Flush_i             : in  STD_LOGIC;
-            Stall_i             : in  STD_LOGIC; -- Stall for this register (not from Hazard Unit for now)
+            Stall_i             : in  STD_LOGIC; -- Stall para este registro (no desde la Unidad de Riesgos por ahora)
             ALUResult_i         : in  STD_LOGIC_VECTOR(31 downto 0);
             WriteDataMem_i      : in  STD_LOGIC_VECTOR(31 downto 0);
             WriteRegAddr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
@@ -132,12 +138,12 @@ architecture Behavioral of MIPS is
         );
     end component;
 
-    -- New HazardUnit Component
+    -- Nuevo Componente HazardUnit
     component HazardUnit is
         Port (
             IF_ID_Rs_addr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
             IF_ID_Rt_addr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
-            -- IF_ID_Inst_is_LW_i   : in  STD_LOGIC; -- Removed from HU as per its definition
+            -- IF_ID_Inst_is_LW_i   : in  STD_LOGIC; -- Eliminado de HU según su definición
             EXMEM_RegWrite_i     : in  STD_LOGIC;
             EXMEM_WriteRegAddr_i : in  STD_LOGIC_VECTOR(4 downto 0);
             EXMEM_MemToReg_i     : in  STD_LOGIC;
@@ -146,35 +152,35 @@ architecture Behavioral of MIPS is
             ForwardA_sel_o       : out STD_LOGIC_VECTOR(1 downto 0);
             ForwardB_sel_o       : out STD_LOGIC_VECTOR(1 downto 0);
             PC_Stall_o           : out STD_LOGIC;
-            IF_ID_Reg_Stall_o    : out STD_LOGIC; -- Output from HU
+            IF_ID_Reg_Stall_o    : out STD_LOGIC; -- Salida de HU
             IDEX_Bubble_o        : out STD_LOGIC
         );
     end component;
 
-    -- Signals for IF Stage outputs / IF-IDEX Register inputs
+    -- Señales para salidas de la Etapa IF / entradas del Registro IF-IDEX
     signal s_if_Instruction_to_reg : std_logic_vector(31 downto 0);
     signal s_if_PC_plus_4_to_reg   : std_logic_vector(31 downto 0);
 
-    -- Signals for IF-IDEX Register outputs / ID-EX Stage inputs
+    -- Señales para salidas del Registro IF-IDEX / entradas de la Etapa ID-EX
     signal s_idex_Instruction_i    : std_logic_vector(31 downto 0);
     signal s_idex_PC_plus_4_i      : std_logic_vector(31 downto 0);
 
-    -- Extracted Rs/Rt from IF/ID for Hazard Unit input
+    -- Rs/Rt extraídos de IF/ID para entrada de la Unidad de Riesgos
     signal s_if_id_rs_addr_for_hu : std_logic_vector(4 downto 0);
     signal s_if_id_rt_addr_for_hu : std_logic_vector(4 downto 0);
 
-    -- Signals for Register File connections
+    -- Señales para conexiones del Archivo de Registros
     signal s_rf_ReadData1          : std_logic_vector(31 downto 0);
     signal s_rf_ReadData2          : std_logic_vector(31 downto 0);
     signal s_idex_ReadReg1Addr     : std_logic_vector(4 downto 0);
     signal s_idex_ReadReg2Addr     : std_logic_vector(4 downto 0);
 
-    -- Signals for PC control path (ID-EX to IF)
+    -- Señales para la ruta de control del PC (ID-EX a IF)
     signal s_idex_PCSrc_to_if            : std_logic_vector(1 downto 0);
     signal s_idex_Branch_Target_to_if    : std_logic_vector(31 downto 0);
     signal s_idex_Jump_Target_to_if      : std_logic_vector(31 downto 0);
 
-    -- Signals for ID-EX Stage outputs / IDEX-MEMWB Register inputs
+    -- Señales para salidas de la Etapa ID-EX / entradas del Registro IDEX-MEMWB
     signal s_idex_ALUResult_to_reg       : std_logic_vector(31 downto 0);
     signal s_idex_WriteDataMem_to_reg    : std_logic_vector(31 downto 0);
     signal s_idex_WriteRegAddr_to_reg    : std_logic_vector(4 downto 0);
@@ -185,7 +191,7 @@ architecture Behavioral of MIPS is
     signal s_idex_MemWrite_to_reg        : std_logic;
     signal s_idex_MemToReg_to_reg        : std_logic;
 
-    -- Signals for IDEX-MEMWB Register outputs / MEM-WB Stage inputs
+    -- Señales para salidas del Registro IDEX-MEMWB / entradas de la Etapa MEM-WB
     signal s_memwb_ALUResult_i           : std_logic_vector(31 downto 0);
     signal s_memwb_WriteDataMem_i        : std_logic_vector(31 downto 0);
     signal s_memwb_WriteRegAddr_i        : std_logic_vector(4 downto 0);
@@ -194,51 +200,51 @@ architecture Behavioral of MIPS is
     signal s_memwb_MemWrite_i            : std_logic;
     signal s_memwb_MemToReg_i            : std_logic;
 
-    -- Signals for MEM-WB Stage outputs / Register File Write Port
+    -- Señales para salidas de la Etapa MEM-WB / Puerto de Escritura del Archivo de Registros
     signal s_rf_WriteData          : std_logic_vector(31 downto 0);
     signal s_rf_WriteAddr          : std_logic_vector(4 downto 0);
     signal s_rf_RegWriteEnable     : std_logic;
 
-    -- Pipeline Control Signals from Hazard Unit
+    -- Señales de Control del Pipeline desde la Unidad de Riesgos
     signal s_hu_ForwardA_sel     : std_logic_vector(1 downto 0);
     signal s_hu_ForwardB_sel     : std_logic_vector(1 downto 0);
     signal s_hu_PC_Stall         : std_logic;
     signal s_hu_IDEX_Bubble      : std_logic;
-    signal s_hu_IF_ID_Reg_Stall_unused : std_logic; -- For the HU output port
+    signal s_hu_IF_ID_Reg_Stall_unused : std_logic; -- Para el puerto de salida de HU
 
-    -- Other Pipeline Control Signals
+    -- Otras Señales de Control del Pipeline
     signal s_Flush_IFIDEX_Reg      : std_logic;
     signal s_Stall_IDEXMEMWB_Reg   : std_logic := '0';
     signal s_Flush_IDEXMEMWB_Reg   : std_logic := '0';
 
 begin
 
-    -- Determine if IF/IDEX register should be flushed (if branch or jump is decided in IDEX)
+    -- Determinar si el registro IF/IDEX debe ser vaciado (si se decide salto o bifurcación en IDEX)
     s_Flush_IFIDEX_Reg <= '1' when s_idex_PCSrc_to_if = "01" or s_idex_PCSrc_to_if = "10" else '0';
 
-    -- Extract Rs/Rt from instruction in ID/EX stage (output of IF/ID reg) for Hazard Unit
+    -- Extraer Rs/Rt de la instrucción en la etapa ID/EX (salida del registro IF/ID) para la Unidad de Riesgos
     s_if_id_rs_addr_for_hu <= s_idex_Instruction_i(25 downto 21);
     s_if_id_rt_addr_for_hu <= s_idex_Instruction_i(20 downto 16);
 
-    -- Hazard Unit Instantiation
+    -- Instanciación de la Unidad de Riesgos
     hazard_unit_inst : entity work.HazardUnit
         port map (
             IF_ID_Rs_addr_i      => s_if_id_rs_addr_for_hu,
             IF_ID_Rt_addr_i      => s_if_id_rt_addr_for_hu,
-            -- IF_ID_Inst_is_LW_i   => '0', -- This input was removed from HU def.
-            EXMEM_RegWrite_i     => s_memwb_RegWrite_i,     -- RegWrite from EX/MEM register output (s_memwb_... are outputs of reg_idex_memwb)
-            EXMEM_WriteRegAddr_i => s_memwb_WriteRegAddr_i, -- WriteRegAddr from EX/MEM register output
-            EXMEM_MemToReg_i     => s_memwb_MemToReg_i,     -- MemToReg from EX/MEM register output
-            MEMWB_RegWrite_i     => s_rf_RegWriteEnable,    -- RegWrite from MEM/WB stage output (feed to RF)
-            MEMWB_WriteRegAddr_i => s_rf_WriteAddr,         -- WriteRegAddr from MEM/WB stage output (feed to RF)
+            -- IF_ID_Inst_is_LW_i   => '0', -- Esta entrada fue eliminada de la definición de HU.
+            EXMEM_RegWrite_i     => s_memwb_RegWrite_i,     -- RegWrite desde la salida del registro EX/MEM (s_memwb_... son salidas de reg_idex_memwb)
+            EXMEM_WriteRegAddr_i => s_memwb_WriteRegAddr_i, -- WriteRegAddr desde la salida del registro EX/MEM
+            EXMEM_MemToReg_i     => s_memwb_MemToReg_i,     -- MemToReg desde la salida del registro EX/MEM
+            MEMWB_RegWrite_i     => s_rf_RegWriteEnable,    -- RegWrite desde la salida de la etapa MEM/WB (alimenta a RF)
+            MEMWB_WriteRegAddr_i => s_rf_WriteAddr,         -- WriteRegAddr desde la salida de la etapa MEM/WB (alimenta a RF)
             ForwardA_sel_o       => s_hu_ForwardA_sel,
             ForwardB_sel_o       => s_hu_ForwardB_sel,
             PC_Stall_o           => s_hu_PC_Stall,
-            IF_ID_Reg_Stall_o    => s_hu_IF_ID_Reg_Stall_unused, -- HU provides this, connect PC_Stall to actual reg
+            IF_ID_Reg_Stall_o    => s_hu_IF_ID_Reg_Stall_unused, -- HU proporciona esto, conectar PC_Stall al registro real
             IDEX_Bubble_o        => s_hu_IDEX_Bubble
         );
 
-    -- Stage 1: Instruction Fetch (IF)
+    -- Etapa 1: Búsqueda de Instrucción (IF)
     if_stage_inst : entity work.if_stage
         port map (
             clk                     => clk,
@@ -247,25 +253,25 @@ begin
             Branch_Target_Addr_i    => s_idex_Branch_Target_to_if,
             Jump_Target_Addr_i      => s_idex_Jump_Target_to_if,
             Flush_Reg_i             => s_Flush_IFIDEX_Reg,
-            Stall_Reg_i             => s_hu_PC_Stall, -- Stall from Hazard Unit
+            Stall_Reg_i             => s_hu_PC_Stall, -- Stall desde la Unidad de Riesgos
             Reg_IF_ID_out           => s_if_Instruction_to_reg,
             Reg_IF_ID_PC_plus_4_out => s_if_PC_plus_4_to_reg
         );
 
-    -- Pipeline Register: IF/ID-EX
+    -- Registro de Pipeline: IF/ID-EX
     if_idex_reg_inst : entity work.reg_if_id
         port map (
             clk            => clk,
             reset          => reset,
             flush          => s_Flush_IFIDEX_Reg,
-            stall          => s_hu_PC_Stall, -- Stall from Hazard Unit
+            stall          => s_hu_PC_Stall, -- Stall desde la Unidad de Riesgos
             PC_plus_4_in   => s_if_PC_plus_4_to_reg,
             Instruction_in => s_if_Instruction_to_reg,
             PC_plus_4_out  => s_idex_PC_plus_4_i,
             Instruction_out=> s_idex_Instruction_i
         );
 
-    -- Stage 2: Instruction Decode & Execute (ID-EX)
+    -- Etapa 2: Decodificación de Instrucción y Ejecución (ID-EX)
     id_ex_stage_inst : entity work.id_ex_stage
         port map (
             clk                       => clk,
@@ -274,13 +280,13 @@ begin
             PC_plus_4_i               => s_idex_PC_plus_4_i,
             RegData1_i                => s_rf_ReadData1,
             RegData2_i                => s_rf_ReadData2,
-            -- New Hazard/Forwarding Ports
+            -- Nuevos Puertos de Riesgo/Adelantamiento
             ForwardA_sel_i            => s_hu_ForwardA_sel,
             ForwardB_sel_i            => s_hu_ForwardB_sel,
-            Forward_EXMEM_ALUResult_i => s_memwb_ALUResult_i,    -- ALURes from EXMEM reg output
-            Forward_MEMWB_WriteData_i => s_rf_WriteData,         -- WB Data from MEMWB stage output (data to RF)
+            Forward_EXMEM_ALUResult_i => s_memwb_ALUResult_i,    -- ALURes desde la salida del registro EXMEM
+            Forward_MEMWB_WriteData_i => s_rf_WriteData,         -- Datos WB desde la salida de la etapa MEMWB (datos a RF)
             Bubble_IDEX_i             => s_hu_IDEX_Bubble,
-            -- Original Outputs
+            -- Salidas Originales
             ALUResult_o               => s_idex_ALUResult_to_reg,
             WriteDataMem_o            => s_idex_WriteDataMem_to_reg,
             WriteRegAddr_o            => s_idex_WriteRegAddr_to_reg,
@@ -297,13 +303,13 @@ begin
             ReadReg2Addr_o            => s_idex_ReadReg2Addr
         );
 
-    -- Pipeline Register: ID-EX/MEM-WB
+    -- Registro de Pipeline: ID-EX/MEM-WB
     idex_memwb_reg_inst : entity work.reg_idex_memwb
         port map (
             clk                 => clk,
             reset               => reset,
             Flush_i             => s_Flush_IDEXMEMWB_Reg,
-            Stall_i             => s_Stall_IDEXMEMWB_Reg, -- Not currently controlled by HU for this 3-stage
+            Stall_i             => s_Stall_IDEXMEMWB_Reg, -- No controlado actualmente por HU para esta etapa de 3 fases
             ALUResult_i         => s_idex_ALUResult_to_reg,
             WriteDataMem_i      => s_idex_WriteDataMem_to_reg,
             WriteRegAddr_i      => s_idex_WriteRegAddr_to_reg,
@@ -324,7 +330,7 @@ begin
             MemToReg_o          => s_memwb_MemToReg_i
         );
 
-    -- Stage 3: Memory Access & Write-Back (MEM-WB)
+    -- Etapa 3: Acceso a Memoria y Escritura de Retorno (MEM-WB)
     mem_wb_stage_inst : entity work.mem_wb_stage
         port map (
             clk_i               => clk,
@@ -341,7 +347,7 @@ begin
             RegWriteEnable_o    => s_rf_RegWriteEnable
         );
 
-    -- Register File Instance
+    -- Instancia del Archivo de Registros
     register_file_inst : entity work.register_file
         port map (
             clk_i           => clk,

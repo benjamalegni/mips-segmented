@@ -1,7 +1,7 @@
 -- ===========
 -- =======    Arquitectura de Computadoras 1 - 2025
 -- ==  Memoria Programa y/o Datos
--- ==  El parámetro C_FUNC infdica si la memoria funciona en flanco ascendente o descendente 
+-- ==  El parámetro C_FUNC indica si la memoria funciona en flanco ascendente o descendente
 -- ======================
 
 library STD;
@@ -76,7 +76,7 @@ begin
          elsif (Clk'event and clk=C_FUNC_CLK) then 
 
 -- si C_FUNC_CLK es '1' funciona como rising_edge(clk)
--- si C_FUNC_CLK es '0' funciona como fllaing edge(clk)
+-- si C_FUNC_CLK es '0' funciona como falling_edge(clk) -- Corrección: falling_edge y no fllaing edge
 
              address:= conv_integer(Addr(30 downto 0));
              if (WrStb = '1') then

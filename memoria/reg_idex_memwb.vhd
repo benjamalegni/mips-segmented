@@ -1,35 +1,41 @@
+-- ======================
+-- ====    Autor LB Malegni
+-- ====    Arquitectura de Computadoras 1 - 2025
+--
+-- ====== MIPS
+-- ======================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL; -- Required for (others => '0') on std_logic_vector in initializations
+use IEEE.NUMERIC_STD.ALL; -- Requerido para (others => '0') en inicializaciones de std_logic_vector
 
 entity reg_idex_memwb is
     Port (
         clk                 : in  STD_LOGIC;
         reset               : in  STD_LOGIC;
-        Flush_i             : in  STD_LOGIC; -- To clear the register contents
-        Stall_i             : in  STD_LOGIC; -- To hold the register contents
+        Flush_i             : in  STD_LOGIC; -- Para limpiar el contenido del registro
+        Stall_i             : in  STD_LOGIC; -- Para mantener el contenido del registro
 
-        -- Inputs from ID-EX Stage
+        -- Entradas desde la Etapa ID-EX
         ALUResult_i         : in  STD_LOGIC_VECTOR(31 downto 0);
         WriteDataMem_i      : in  STD_LOGIC_VECTOR(31 downto 0);
         WriteRegAddr_i      : in  STD_LOGIC_VECTOR(4 downto 0);
         PC_plus_4_pass_i    : in  STD_LOGIC_VECTOR(31 downto 0);
         ALU_Zero_i          : in  STD_LOGIC;
 
-        -- Control Signals from ID-EX Stage
+        -- Señales de Control desde la Etapa ID-EX
         RegWrite_i          : in  STD_LOGIC;
         MemRead_i           : in  STD_LOGIC;
         MemWrite_i          : in  STD_LOGIC;
         MemToReg_i          : in  STD_LOGIC;
 
-        -- Outputs to MEM-WB Stage
+        -- Salidas hacia la Etapa MEM-WB
         ALUResult_o         : out STD_LOGIC_VECTOR(31 downto 0);
         WriteDataMem_o      : out STD_LOGIC_VECTOR(31 downto 0);
         WriteRegAddr_o      : out STD_LOGIC_VECTOR(4 downto 0);
         PC_plus_4_pass_o    : out STD_LOGIC_VECTOR(31 downto 0);
         ALU_Zero_o          : out STD_LOGIC;
 
-        -- Control Signals to MEM-WB Stage
+        -- Señales de Control hacia la Etapa MEM-WB
         RegWrite_o          : out STD_LOGIC;
         MemRead_o           : out STD_LOGIC;
         MemWrite_o          : out STD_LOGIC;
@@ -38,7 +44,7 @@ entity reg_idex_memwb is
 end reg_idex_memwb;
 
 architecture Behavioral of reg_idex_memwb is
-    -- Internal signals to hold registered values
+    -- Señales internas para mantener los valores registrados
     signal s_ALUResult         : STD_LOGIC_VECTOR(31 downto 0) := (others => '0');
     signal s_WriteDataMem      : STD_LOGIC_VECTOR(31 downto 0) := (others => '0');
     signal s_WriteRegAddr      : STD_LOGIC_VECTOR(4 downto 0)  := (others => '0');
@@ -75,7 +81,7 @@ begin
                 s_MemRead           <= '0';
                 s_MemWrite          <= '0';
                 s_MemToReg          <= '0';
-            elsif Stall_i = '0' then -- Only load if not stalling
+            elsif Stall_i = '0' then -- Solo cargar si no está bloqueado
                 s_ALUResult         <= ALUResult_i;
                 s_WriteDataMem      <= WriteDataMem_i;
                 s_WriteRegAddr      <= WriteRegAddr_i;
@@ -86,11 +92,11 @@ begin
                 s_MemWrite          <= MemWrite_i;
                 s_MemToReg          <= MemToReg_i;
             end if;
-            -- If Stall_i is '1' (and not flush/reset), values remain unchanged due to no assignment
+            -- Si Stall_i es '1' (y no flush/reset), los valores permanecen sin cambios debido a la no asignación
         end if;
     end process;
 
-    -- Assign registered signals to outputs
+    -- Asignar señales registradas a las salidas
     ALUResult_o         <= s_ALUResult;
     WriteDataMem_o      <= s_WriteDataMem;
     WriteRegAddr_o      <= s_WriteRegAddr;
